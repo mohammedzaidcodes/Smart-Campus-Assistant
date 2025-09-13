@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Campus Assistant</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0;
+        }
+        .chat-container {
+            max-height: 80vh;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        .user-message {
+            background-color: #2563eb;
+            color: white;
+            border-radius: 1.5rem;
+            border-top-right-radius: 0.5rem;
+        }
+        .assistant-message {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            border-radius: 1.5rem;
+            border-top-left-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-xl flex flex-col h-[90vh]">
+        <div class="flex-shrink-0 mb-4 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Campus Assistant</h1>
+            <p class="text-sm text-gray-500">Malla Reddy Deemed to be University</p>
+        </div>
+
+        <!-- Chat messages container -->
+        <div id="chat-history" class="chat-container flex-grow space-y-4 p-4 mb-4 bg-gray-50 rounded-2xl shadow-inner">
+            <!-- Initial welcome message from the assistant -->
+            <div class="flex justify-start">
+                <div class="assistant-message p-3 max-w-sm">
+                    Hello! I'm your Smart Campus Assistant for Malla Reddy Deemed to be University. How can I help you today?
+                </div>
+            </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="flex-shrink-0 flex items-center p-4 bg-white rounded-2xl shadow-lg">
+            <input id="user-input" type="text" placeholder="Ask a question..." class="flex-grow p-3 rounded-2xl bg-gray-100 text-gray-800 placeholder-gray-400 border-2 border-transparent focus:outline-none focus:border-blue-500 transition-colors">
+            <button id="send-button" class="ml-4 p-3 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors transform hover:scale-105 active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+            </button>
+        </div>
+
+    </div>
+
+    <script type="module">
+        // Firebase and API configuration
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+        // Get DOM elements
+        const chatHistory = document.getElementById('chat-history');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+
+        // Function to add a message to the chat history
+        const addMessage = (text, sender) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `p-3 max-w-sm shadow-md ${sender === 'user' ? 'user-message' : 'assistant-message'}`;
+            contentDiv.innerHTML = text.replace(/\n/g, '<br>');
+            
+            messageDiv.appendChild(contentDiv);
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        };
+
+        // Static campus data
+        const campusData = {
+            name: "Malla Reddy Deemed to be University",
+            timings: "The campus operates from 9:15 AM to 3:45 PM from Monday to Saturday. Please note that timings may vary for special events or holidays.",
+            library: "The university library is a valuable resource with an extensive collection of books, journals, and digital resources. It offers high-speed internet access, e-journals (including IEEE and ASME), and video lectures. The library is a great place for research and study.",
+            dining: "The campus has a well-maintained food court and cafeteria that serves a variety of fresh, hygienic, and nutritious food. It is designed to meet the highest standards of cleanliness and provides a pleasant dining experience for students and staff. There is also a Coffee-Day kiosk for quick snacks and beverages."
+        };
+
+        // Function to handle specific, non-AI queries
+        const handleStaticQueries = (query) => {
+            const lowerQuery = query.toLowerCase();
+
+            // Handle greetings
+            if (lowerQuery.includes('hi') || lowerQuery.includes('hello') || lowerQuery.includes('hey')) {
+                return "Hello there! How can I assist you today?";
+            }
+
+            // Handle specific campus data queries
+            if (lowerQuery.includes('timing') || lowerQuery.includes('time') || lowerQuery.includes('schedule')) {
+                return campusData.timings;
+            }
+            if (lowerQuery.includes('library')) {
+                return campusData.library;
+            }
+            if (lowerQuery.includes('dining') || lowerQuery.includes('food') || lowerQuery.includes('canteen')) {
+                return campusData.dining;
+            }
+            if (lowerQuery.includes('campus name') || lowerQuery.includes('university name')) {
+                return `The campus name is ${campusData.name}.`;
+            }
+
+            return null; // No static match found
+        };
+
+        // Function to handle sending a message
+        const sendMessage = async () => {
+            const userText = userInput.value.trim();
+            if (userText === '') return;
+
+            // Display user message
+            addMessage(userText, 'user');
+            userInput.value = '';
+
+            // Check for static answers first
+            const staticResponse = handleStaticQueries(userText);
+            if (staticResponse) {
+                addMessage(staticResponse, 'assistant');
+                return;
+            }
+
+            // If no static answer, show typing indicator and call the AI
+            const typingIndicator = document.createElement('div');
+            typingIndicator.id = 'typing-indicator';
+            typingIndicator.className = 'flex justify-start';
+            typingIndicator.innerHTML = `
+                <div class="assistant-message p-3 max-w-sm animate-pulse">
+                    <span class="inline-block h-2 w-2 bg-gray-500 rounded-full mx-1"></span>
+                    <span class="inline-block h-2 w-2 bg-gray-500 rounded-full mx-1"></span>
+                    <span class="inline-block h-2 w-2 bg-gray-500 rounded-full mx-1"></span>
+                </div>
+            `;
+            chatHistory.appendChild(typingIndicator);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            sendButton.disabled = true;
+
+            // System instruction for the Gemini API
+            const systemPrompt = `You are a helpful and friendly campus assistant for Malla Reddy Deemed to be University. Use the following information to answer user questions. If a question is not covered by the information, politely state that you can only answer questions about the campus and its facilities.
+
+            **Campus Information:**
+            - Campus Name: Malla Reddy Deemed to be University
+            - Campus operates from 9:15 AM to 3:45 PM.
+            - Library is a valuable resource with extensive books, journals, and digital access (IEEE, ASME, video lectures).
+            - Dining is available at a well-maintained food court and cafeteria with hygienic and nutritious food. A Coffee-Day kiosk is also available.`;
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: userText }]
+                }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+
+            let responseText = "I'm sorry, I couldn't process that request. I can only provide information about Malla Reddy Deemed to be University campus and its facilities.";
+
+            // Exponential backoff for API calls
+            const maxRetries = 3;
+            let retries = 0;
+            let success = false;
+
+            while (retries < maxRetries && !success) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API call failed with status ${response.status}: ${JSON.stringify(errorData)}`);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        responseText = candidate.content.parts[0].text;
+                        success = true;
+                    } else {
+                        throw new Error('Unexpected API response structure.');
+                    }
+                } catch (error) {
+                    console.error('API call error:', error);
+                    retries++;
+                    if (retries < maxRetries) {
+                        await new Promise(res => setTimeout(res, Math.pow(2, retries) * 1000));
+                    }
+                }
+            }
+
+            // Remove typing indicator and add assistant's response
+            typingIndicator.remove();
+            addMessage(responseText, 'assistant');
+            sendButton.disabled = false;
+        };
+
+        // Event listeners for sending message
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
